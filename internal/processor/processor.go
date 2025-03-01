@@ -55,10 +55,10 @@ func (p *LogProcessor) Start() error {
 
 	// TODO
 
-	wg.Add(len(files))
 	// Process each file
 	for _, file := range files {
 		// BUG: Capturing loop variable in goroutine
+		wg.Add(1)
 		go func(file string) {
 			defer wg.Done()
 			err := p.processFile(file)
