@@ -1,0 +1,3 @@
+{"id":"1","timestamp":"2023-01-01T10:00:00Z","level":"INFO","service":"api","message":"User login successful"}
+{"id":"2","timestamp":"2023-01-01T10:05:00Z","level":"ERROR","service":"db","message":"Connection timeout"}
+{"id":"3","timestamp":"2023-01-01T10:10:00Z","level":"INFO","service":"api","message":"Data fetch completed"}
