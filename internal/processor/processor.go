@@ -15,12 +15,12 @@ import (
 
 // LogProcessor processes log files and aggregates statistics
 type LogProcessor struct {
-	analyzer      *analyzer.LogAnalyzer
-	inputDir      string
-	batchSize     int
-	processingCh  chan models.LogEntry
+	analyzer     *analyzer.LogAnalyzer
+	inputDir     string
+	batchSize    int
+	processingCh chan models.LogEntry
 	// BUG: The done channel is closed but never used properly
-	done          chan struct{}
+	done chan struct{}
 }
 
 // NewLogProcessor creates a new log processor
@@ -53,9 +53,11 @@ func (p *LogProcessor) Start() error {
 		go p.worker()
 	}
 
+	// TODO
+
+	wg.Add(len(files))
 	// Process each file
 	for _, file := range files {
-		wg.Add(1)
 		// BUG: Capturing loop variable in goroutine
 		go func(file string) {
 			defer wg.Done()
@@ -98,7 +100,7 @@ func (p *LogProcessor) processFile(filePath string) error {
 			}
 			return fmt.Errorf("failed to decode entry: %w", err)
 		}
-		
+
 		// Set the source to the filename
 		entry.Source = fileName
 		entries = append(entries, entry)
@@ -111,7 +113,7 @@ func (p *LogProcessor) processFile(filePath string) error {
 			end = len(entries)
 		}
 		batch := entries[i:end]
-		
+
 		// Send each entry to the processing channel
 		for _, entry := range batch {
 			// BUG: No check if the channel is closed

@@ -10,20 +10,24 @@ import (
 // LogAnalyzer aggregates statistics from log entries
 type LogAnalyzer struct {
 	// BUG: summary is accessed concurrently without proper synchronization
-	summary    *models.LogSummary
+	summary      *models.LogSummary
 	processedIDs map[string]bool
+	mutex        sync.Mutex
 }
 
 // NewLogAnalyzer creates a new log analyzer
 func NewLogAnalyzer() *LogAnalyzer {
 	return &LogAnalyzer{
-		summary:    models.NewLogSummary(),
+		summary:      models.NewLogSummary(),
 		processedIDs: make(map[string]bool),
 	}
 }
 
 // Process analyzes a log entry and updates the summary
 func (a *LogAnalyzer) Process(entry models.LogEntry) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
 	// BUG: Concurrent access to maps without synchronization
 	if a.processedIDs[entry.ID] {
 		// Skip already processed entries
@@ -61,14 +65,14 @@ func (a *LogAnalyzer) ProcessBatch(entries []models.LogEntry) {
 		go func(e models.LogEntry) {
 			// BUG: The following line should be deferred, but is missing
 			// defer wg.Done()
-			
+
 			a.Process(e)
-			
+
 			// Simulate some processing time
 			time.Sleep(time.Millisecond * 10)
 		}(entry)
 	}
-	
+
 	// BUG: This will likely cause a deadlock or race condition
 	// Should wait for all goroutines to complete before returning
 	// wg.Wait()
@@ -78,5 +82,23 @@ func (a *LogAnalyzer) ProcessBatch(entries []models.LogEntry) {
 func (a *LogAnalyzer) GetSummary() *models.LogSummary {
 	// BUG: Returns the internal data structure without making a copy
 	// This allows external code to modify the internal state
-	return a.summary
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	c := &models.LogSummary{
+		TotalEntries: a.summary.TotalEntries,
+		ByLevel:      make(map[models.LogLevel]int),
+		ByService:    make(map[string]int),
+	}
+
+	for k, v := range a.summary.ByLevel {
+		c.ByLevel[k] = v
+	}
+	for k, v := range a.summary.ByService {
+		c.ByService[k] = v
+	}
+	c.TimeRange.Start = a.summary.TimeRange.Start
+	c.TimeRange.End = a.summary.TimeRange.End
+
+	return c
 }
