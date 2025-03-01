@@ -9,22 +9,24 @@ import (
 
 // LogAnalyzer aggregates statistics from log entries
 type LogAnalyzer struct {
-	// BUG: summary is accessed concurrently without proper synchronization
-	summary    *models.LogSummary
+	mu           sync.Mutex
+	summary      *models.LogSummary
 	processedIDs map[string]bool
 }
 
 // NewLogAnalyzer creates a new log analyzer
 func NewLogAnalyzer() *LogAnalyzer {
 	return &LogAnalyzer{
-		summary:    models.NewLogSummary(),
+		summary:      models.NewLogSummary(),
 		processedIDs: make(map[string]bool),
 	}
 }
 
 // Process analyzes a log entry and updates the summary
 func (a *LogAnalyzer) Process(entry models.LogEntry) {
-	// BUG: Concurrent access to maps without synchronization
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	if a.processedIDs[entry.ID] {
 		// Skip already processed entries
 		return
@@ -55,13 +57,10 @@ func (a *LogAnalyzer) Process(entry models.LogEntry) {
 func (a *LogAnalyzer) ProcessBatch(entries []models.LogEntry) {
 	var wg sync.WaitGroup
 
-	// BUG: The WaitGroup is not being used correctly
 	for _, entry := range entries {
 		wg.Add(1)
 		go func(e models.LogEntry) {
-			// BUG: The following line should be deferred, but is missing
-			// defer wg.Done()
-			
+			defer wg.Done()
 			a.Process(e)
 			
 			// Simulate some processing time
@@ -69,14 +68,32 @@ func (a *LogAnalyzer) ProcessBatch(entries []models.LogEntry) {
 		}(entry)
 	}
 	
-	// BUG: This will likely cause a deadlock or race condition
-	// Should wait for all goroutines to complete before returning
-	// wg.Wait()
+	wg.Wait()
 }
 
-// GetSummary returns the current log summary
+// GetSummary returns a copy of the current log summary
 func (a *LogAnalyzer) GetSummary() *models.LogSummary {
-	// BUG: Returns the internal data structure without making a copy
-	// This allows external code to modify the internal state
-	return a.summary
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Create a deep copy of the summary
+	copy := &models.LogSummary{
+		TotalEntries: a.summary.TotalEntries,
+		ByLevel:      make(map[models.LogLevel]int),
+		ByService:    make(map[string]int),
+	}
+
+	// Copy maps
+	for k, v := range a.summary.ByLevel {
+		copy.ByLevel[k] = v
+	}
+	for k, v := range a.summary.ByService {
+		copy.ByService[k] = v
+	}
+
+	// Copy time range
+	copy.TimeRange.Start = a.summary.TimeRange.Start
+	copy.TimeRange.End = a.summary.TimeRange.End
+
+	return copy
 }
