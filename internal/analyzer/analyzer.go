@@ -28,7 +28,6 @@ func (a *LogAnalyzer) Process(entry models.LogEntry) {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
-	// BUG: Concurrent access to maps without synchronization
 	if a.processedIDs[entry.ID] {
 		// Skip already processed entries
 		return
@@ -58,30 +57,20 @@ func (a *LogAnalyzer) Process(entry models.LogEntry) {
 // ProcessBatch processes multiple log entries concurrently
 func (a *LogAnalyzer) ProcessBatch(entries []models.LogEntry) {
 	var wg sync.WaitGroup
-
-	// BUG: The WaitGroup is not being used correctly
 	for _, entry := range entries {
 		wg.Add(1)
 		go func(e models.LogEntry) {
-			// BUG: The following line should be deferred, but is missing
-			// defer wg.Done()
-
+			defer wg.Done()
 			a.Process(e)
-
 			// Simulate some processing time
 			time.Sleep(time.Millisecond * 10)
 		}(entry)
 	}
-
-	// BUG: This will likely cause a deadlock or race condition
-	// Should wait for all goroutines to complete before returning
-	// wg.Wait()
+	wg.Wait()
 }
 
 // GetSummary returns the current log summary
 func (a *LogAnalyzer) GetSummary() *models.LogSummary {
-	// BUG: Returns the internal data structure without making a copy
-	// This allows external code to modify the internal state
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
